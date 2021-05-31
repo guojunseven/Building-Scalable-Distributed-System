@@ -1,0 +1,17 @@
+<component name="ArtifactManager">
+  <artifact type="exploded-war" name="TextProcessor:war exploded">
+    <output-path>$PROJECT_DIR$/out/artifacts/TextProcessor_war_exploded</output-path>
+    <root id="root">
+      <element id="javaee-facet-resources" facet="TextProcessor/web/Web" />
+      <element id="directory" name="WEB-INF">
+        <element id="directory" name="classes">
+          <element id="module-output" name="TextProcessor" />
+        </element>
+        <element id="directory" name="lib">
+          <element id="library" level="project" name="gson-2.8.6" />
+          <element id="library" level="project" name="Maven: io.swagger:swagger-java-client:1.0.0" />
+        </element>
+      </element>
+    </root>
+  </artifact>
+</component>
