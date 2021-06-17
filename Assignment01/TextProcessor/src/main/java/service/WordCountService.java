@@ -1,5 +1,11 @@
 package service;
 
+import javafx.util.Pair;
+
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+
 /**
  * A service class serving as a processor to count the number of words in a Line.
  */

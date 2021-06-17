@@ -49,15 +49,19 @@ public class TextProcessServlet extends HttpServlet {
             while ((line = reader.readLine()) != null) {
                 sb.append(line);
             }
+            reader.close();
 
             TextLine textLine = new Gson().fromJson(sb.toString(), TextLine.class);
 
             TextProcessor processor = functions.get(pathVariable);
 
             // check if body exits and if the target is valid
-            if (textLine != null && processor.validate(textLine.getMessage())) {
+            if (textLine != null
+                    && processor.validate(textLine.getMessage())
+                  ) {
                 response.setStatus(HttpServletResponse.SC_OK);
                 ResultVal result = new ResultVal().message(processor.apply(textLine.getMessage()));
+//                ResultVal result = new ResultVal().message(1);
                 out.write(new Gson().toJson(result));
             } else {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -66,6 +70,8 @@ public class TextProcessServlet extends HttpServlet {
             }
         }
         out.flush();
+        out.close();
+
     }
 
     /**

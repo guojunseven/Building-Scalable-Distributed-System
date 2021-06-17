@@ -13,7 +13,10 @@ public class ClientMultiThreaded {
     private static String input;
     private static int maxThreads;
     private static String localPath = "http://localhost:8080/TextProcessor";
-    private static String basePath = "http://ec2-54-91-96-97.compute-1.amazonaws.com:8080/TextProcessor";
+    private static String publicPath = "http://localhost:8080/gortonator/TextProcessor/1.0.2";
+    private static String lbs = "http://lbs6650-1874071894.us-east-1.elb.amazonaws.com:8080/TextProcessor";
+
+    private static String basePath = "http://54.91.113.78:8080/TextProcessor";
     private static String function = "wordcount";
 
     /**
@@ -31,19 +34,22 @@ public class ClientMultiThreaded {
         RequestsCount counter = new RequestsCount();
 
         // using a blocking queue to distribute lines of text
-        BlockingQueue<String> workQueue = new ArrayBlockingQueue<>(maxThreads);
+        BlockingQueue<String> workQueue = new ArrayBlockingQueue<>(12000);
 
         // creating barrier
         CyclicBarrier barrier = new CyclicBarrier(maxThreads + 1);
         String end = "EOF";
 
         // Thread to read line and put the line to the work queue
-        new TextReaderThread(workQueue, reader, end, maxThreads).start();
+        CyclicBarrier synk = new CyclicBarrier(2);
+        new TextReaderThread(workQueue, reader, end, maxThreads, synk).start();
+        synk.await();
+
 
         long start = System.currentTimeMillis();
 
         for (int i = 0; i < maxThreads; i++) {
-            new ApiClientThread(workQueue, basePath, function, barrier, counter, end).start();
+            new ApiClientThread(workQueue, localPath, function, barrier, counter, end).start();
         }
 
         barrier.await();

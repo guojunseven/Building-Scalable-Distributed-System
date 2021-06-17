@@ -33,13 +33,13 @@ public class ClientMultiThreaded {
         RequestsCount counter = new RequestsCount();
 
         // using a blocking queue to distribute lines of text
-        BlockingQueue<String> workQueue = new ArrayBlockingQueue<>(maxThreads);
+        BlockingQueue<String> workQueue = new ArrayBlockingQueue<>(12000);
         CyclicBarrier barrier = new CyclicBarrier(maxThreads + 1);
         String end = "EOF";
 
         // Thread to read line and put the line to the work queue
         new TextReaderThread(workQueue, reader, end, maxThreads).start();
-
+        Thread.sleep(5000);
         // Thread pool to write statistics to csv file
         BufferedWriter writer = new BufferedWriter(new FileWriter(csvPath));
         ThreadPoolExecutor pool = new ThreadPoolExecutor(

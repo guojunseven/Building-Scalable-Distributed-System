@@ -68,6 +68,7 @@ public class ApiClientThread extends Thread {
             }
             try {
                 ResultVal result = apiInstance.analyzeNewLine(body.message(line), function);
+
                 counter.markSucc();
                 // System.out.println(result);
             } catch (ApiException e) {
