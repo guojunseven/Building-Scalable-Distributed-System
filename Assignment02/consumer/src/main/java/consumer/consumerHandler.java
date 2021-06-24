@@ -1,7 +1,6 @@
 package consumer;
 
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.DeliverCallback;
+import com.rabbitmq.client.*;
 import org.apache.commons.lang3.SerializationUtils;
 
 import java.io.IOException;
@@ -39,20 +38,32 @@ public class consumerHandler extends Thread{
 
     @Override
     public void run() {
-        DeliverCallback deliverCallback = (consumerTag, delivery) -> {
-            Map<String, Integer> data = SerializationUtils.deserialize(delivery.getBody());
-            Iterator<Map.Entry<String, Integer>> iter = data.entrySet().iterator();
-            while (iter.hasNext()) {
-                Map.Entry<String, Integer> entry = iter.next();
-                String key = entry.getKey();
-                map.put(key, map.getOrDefault(key, 0) + entry.getValue());
+        DefaultConsumer consumer = new DefaultConsumer(channel) {
+            @Override
+            public void handleDelivery(String consumerTag,
+                                       Envelope envelope,
+                                       AMQP.BasicProperties properties,
+                                       byte[] body)
+                    throws IOException
+            {
+                Map<String, Integer> data = SerializationUtils.deserialize(body);
+                Iterator<Map.Entry<String, Integer>> iter = data.entrySet().iterator();
+                while (iter.hasNext()) {
+                    Map.Entry<String, Integer> entry = iter.next();
+                    String key = entry.getKey();
+                    map.put(key, map.getOrDefault(key, 0) + entry.getValue());
+                }
+                long deliveryTag = envelope.getDeliveryTag();
+                channel.basicAck(deliveryTag, false);
             }
         };
+
         try {
-            channel.basicConsume(queueName, true, deliverCallback, consumerTag -> { });
+            channel.basicConsume(queueName, false, consumer);
         } catch (IOException e) {
             System.err.println("fail to consume messages");
         }
+
         try {
             synk.await();
         } catch (InterruptedException | BrokenBarrierException e) {

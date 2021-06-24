@@ -1,11 +1,10 @@
 package controller;
 
 import com.google.gson.Gson;
-import io.swagger.client.model.ErrMessage;
-import io.swagger.client.model.ResultVal;
 import io.swagger.client.model.TextLine;
 import model.ChannelPool;
 import org.apache.commons.pool2.ObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPool;
 import service.TextProcessor;
 import service.WordCountService;
 
@@ -53,8 +52,8 @@ public class TextProcessServlet extends HttpServlet {
 
         if (!isUrlValid(pathVariable)) {
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            ErrMessage errMessage = new ErrMessage().message("This operation is not provided");
-            out.write(new Gson().toJson(errMessage));
+
+            out.write(new Gson().toJson(null));
 
         } else {
             BufferedReader reader = request.getReader();
@@ -72,17 +71,10 @@ public class TextProcessServlet extends HttpServlet {
             // check if body exits and if the target is valid
             if (textLine != null && processor.validate(textLine.getMessage())) {
                 response.setStatus(HttpServletResponse.SC_OK);
-                ResultVal result = null;
-                try {
-                    result = new ResultVal().message(processor.apply(textLine.getMessage()));
-                } catch (Exception e) {
-                    System.err.println("fail to process the text line message");
-                }
-                out.write(new Gson().toJson(result));
+
+                out.write(new Gson().toJson(null));
             } else {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                ErrMessage errMessage = new ErrMessage().message("The input is not valid");
-                out.write(new Gson().toJson(errMessage));
             }
         }
         out.flush();

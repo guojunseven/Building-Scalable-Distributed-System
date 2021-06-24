@@ -13,7 +13,7 @@ public class ClientMultiThreaded {
     private static String input;
     private static int maxThreads;
     private static String localPath = "http://localhost:8080/TextProcessor";
-    private static String basePath = "http://3.93.62.41:8080/TextProcessor";
+    private static String basePath = "http://54.91.96.97:8080/TextProcessor";
     private static String lbs = "http://lbs-588037931.us-east-1.elb.amazonaws.com:8080/TextProcessor";
     private static String function = "wordcount";
     private static String csvPath = "statistics.csv";
@@ -58,7 +58,7 @@ public class ClientMultiThreaded {
         long start = System.currentTimeMillis();
         for (int i = 0; i < maxThreads; i++) {
 
-            new ApiClientThread(workQueues[i / 8], lbs, function, barrier, counter, end, pool, writer).start();
+            new ApiClientThread(workQueues[i / 8], basePath, function, barrier, counter, end, pool, writer).start();
         }
 
         // wait for threads to complete

@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="war" name="TextProcessor">
+    <output-path>$PROJECT_DIR$/out/artifacts/TextProcessor</output-path>
+    <root id="archive" name="TextProcessor.war">
+      <element id="artifact" artifact-name="TextProcessor:war exploded" />
+    </root>
+  </artifact>
+</component>
