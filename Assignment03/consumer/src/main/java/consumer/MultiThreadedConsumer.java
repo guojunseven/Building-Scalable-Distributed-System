@@ -1,9 +1,11 @@
 package consumer;
 
-import com.rabbitmq.client.*;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
-import model.JDBCDataSource;
-import org.apache.commons.dbcp2.BasicDataSource;
 
 import java.io.IOException;
 import java.util.Properties;
@@ -15,7 +17,7 @@ import java.util.concurrent.TimeoutException;
  * This is a consumer that can consume the rabbit in multiple threads, ie multiple consumers.
  */
 public class MultiThreadedConsumer {
-    private static String queueName = "wordCount-persistent";
+    private static String queueName = "wordCount";
     private static int maxThreads;
 
     public static void main(String[] args) throws IOException {
@@ -25,7 +27,7 @@ public class MultiThreadedConsumer {
             maxThreads = Integer.parseInt(args[0]);
         }
 
-        // set properties
+        // set rabbitmq properties
         Properties properties = new Properties();
         properties.load(MultiThreadedConsumer.class.getClassLoader().getResourceAsStream("application.properties"));
 
@@ -34,17 +36,19 @@ public class MultiThreadedConsumer {
         factory.setUsername(properties.getProperty("username"));
         factory.setPassword(properties.getProperty("password"));
 
-        // set Mysql connection
-        BasicDataSource datasource = new JDBCDataSource().getDataSource();
+        // create dynamoDB mapper
+        AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard().withRegion("us-east-1")
+                .build();
+        DynamoDBMapper mapper = new DynamoDBMapper(client);
 
         CyclicBarrier synk = new CyclicBarrier(maxThreads + 1);
+
         try {
-            Connection connection = factory.newConnection();
+            Connection  connection = factory.newConnection();
             for (int i = 0; i < maxThreads; i++) {
                 Channel channel = connection.createChannel();
-                channel.queueDeclare(queueName, true, false, false, null);
-
-                new consumerHandler(datasource, channel, queueName, synk).start();
+                channel.queueDeclare(queueName, false, false, false, null);
+                new ConsumerHandler(mapper, channel, queueName, synk).start();
             }
             synk.await();
         } catch (IOException | TimeoutException e) {
@@ -57,7 +61,4 @@ public class MultiThreadedConsumer {
             e.printStackTrace();
         }
     }
-
-
-
 }

@@ -66,22 +66,25 @@ public class ClientMultiThreaded {
                 5, 10, 50, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
 
         CyclicBarrier synk = new CyclicBarrier(2);
+
+        // set the sign to be false at initial
         Signal sign = new Signal();
         sign.set(false);
 
         long start = System.currentTimeMillis();
         for (int i = 0; i < maxThreads; i++) {
 
-            new ApiClientThread(workQueues[i / 8], localPath, function, barrier, counter, end, pool1, writer).start();
+            new ApiClientThread(workQueues[i / 8], basePath, function, barrier, counter, end, pool1, writer).start();
         }
 
-        new ApiGetThread(localPath, function, synk, getCounter, sign, pool2, getWriter).start();
+        new ApiGetThread(basePath, function, synk, getCounter, sign, pool2, getWriter).start();
 
         // wait for threads to complete
         barrier.await();
 
         long wallTime = System.currentTimeMillis() - start;
 
+        // notify the GET thread to terminate
         sign.set(true);
 
         // wait for get thread to complete

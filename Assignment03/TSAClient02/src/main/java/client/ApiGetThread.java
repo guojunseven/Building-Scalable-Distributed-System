@@ -26,8 +26,8 @@ public class ApiGetThread extends Thread {
     private final Signal sign;
     private final ThreadPoolExecutor pool;
     private final BufferedWriter writer;
-    private final String[] wordList = new String[]{"the", "and", "this", "data", "distributed", "system", "netword",
-    "database", "scale", "lock"};
+    private final String[] wordList = new String[]{"balancer", "guojun", "response", "partition", "distributed", "system", "internet",
+    "database", "scalable", "lock"};
 
     /**
      * Initialize a client thread with a reader which will be accessed
@@ -59,10 +59,10 @@ public class ApiGetThread extends Thread {
 
     public void run() {
         while (true) {
+            // check if need to terminate
             if (sign.get()) {
                 break;
             }
-
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {

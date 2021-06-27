@@ -1,9 +1,12 @@
 package model;
 
-import consumer.MultiThreadedConsumer;
-import org.apache.commons.dbcp2.BasicDataSource;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import consumer.MultiThreadedConsumerv2;
 
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.Properties;
 
 /**
@@ -12,21 +15,17 @@ import java.util.Properties;
  */
 public class JDBCDataSource {
 
-    private BasicDataSource dataSource;
+    private HikariConfig config;
+    private HikariDataSource ds;
 
     /**
      * Initialize the data source connection.
      * @throws IOException
      */
     public JDBCDataSource() throws IOException {
-        dataSource = new BasicDataSource();
+        this.config = new HikariConfig();
         Properties properties = new Properties();
-        properties.load(MultiThreadedConsumer.class.getClassLoader().getResourceAsStream("application.properties"));
-        try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
+        properties.load(MultiThreadedConsumerv2.class.getClassLoader().getResourceAsStream("application.properties"));
 
         final String HOST_NAME = properties.getProperty("MySQL_IP_ADDRESS");
         final String PORT = properties.getProperty("MySQL_PORT");
@@ -35,18 +34,21 @@ public class JDBCDataSource {
         final String PASSWORD = properties.getProperty("DB_PASSWORD");
 
         String url = String.format("jdbc:mysql://%s:%s/%s?serverTimezone=UTC", HOST_NAME, PORT, DATABASE);
-        dataSource.setUrl(url);
-        dataSource.setUsername(USERNAME);
-        dataSource.setPassword(PASSWORD);
-        dataSource.setInitialSize(20);
-        dataSource.setMaxTotal(80);
+        config.setJdbcUrl(url);
+        config.setUsername(USERNAME);
+        config.setPassword(PASSWORD);
+        config.addDataSourceProperty( "cachePrepStmts" , "true" );
+        config.addDataSourceProperty( "prepStmtCacheSize" , "250" );
+        config.addDataSourceProperty( "prepStmtCacheSqlLimit" , "2048" );
+        this.ds = new HikariDataSource(config);
+        ds.setMaximumPoolSize(60);
     }
 
     /**
      * Return the data source connection
      * @return data source
      */
-    public BasicDataSource getDataSource() {
-        return dataSource;
+    public Connection getConnetion() throws SQLException {
+        return ds.getConnection();
     }
 }

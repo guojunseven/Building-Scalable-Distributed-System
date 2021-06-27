@@ -1,13 +1,19 @@
 package controller;
 
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicSessionCredentials;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper;
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBQueryExpression;
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.google.gson.Gson;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import io.swagger.client.model.TextLine;
 import model.ChannelPool;
-import model.JDBCDataSource;
-import org.apache.commons.dbcp2.BasicDataSource;
+import model.WordCount;
 import org.apache.commons.pool2.ObjectPool;
 import service.TextProcessor;
 import service.WordCountService;
@@ -19,10 +25,8 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeoutException;
@@ -31,24 +35,29 @@ public class TextProcessServlet extends HttpServlet {
 
     // this field used for store our various text processor
     private final Map<String, TextProcessor> functions = new HashMap<>();
-    private static String queueName = "wordCount-persistent";
+    private static String queueName = "wordCount";
     private Connection connection;
     private ObjectPool<Channel> channelObjectPool;
-    private BasicDataSource dataSource;
+    private DynamoDBMapper mapper;
+    private Properties properties;
 
     @Override
     public void init() throws ServletException {
         super.init();
+        // set properties
+        this.properties = new Properties();
+        try {
+            properties.load(getServletContext().getResourceAsStream("WEB-INF/application.properties"));
+        } catch (IOException e) {
+            System.err.println("can not get properties file");
+        }
         // set mq connection
         setMqConnection();
         // set channels pool
         setChannelPool();
-        // set database connection
-        try {
-            setDataSource();
-        } catch (IOException e) {
-            System.err.println("fail to set data source");
-        }
+        // set daynamo database connection
+        setDataSource();
+
         functions.put( "/wordcount",new WordCountService(channelObjectPool, queueName));
     }
 
@@ -110,13 +119,7 @@ public class TextProcessServlet extends HttpServlet {
     private void setMqConnection() {
         // create one single rabbitmq connection per servlet
         ConnectionFactory factory = new ConnectionFactory();
-        // set properties
-        Properties properties = new Properties();
-        try {
-            properties.load(getServletContext().getResourceAsStream("WEB-INF/application.properties"));
-        } catch (IOException e) {
-            System.err.println("can not get properties file");
-        }
+
         factory.setHost(properties.getProperty("hostname"));
         factory.setUsername(properties.getProperty("username"));
         factory.setPassword(properties.getProperty("password"));
@@ -130,11 +133,11 @@ public class TextProcessServlet extends HttpServlet {
     }
 
     private void setChannelPool() {
-        this.channelObjectPool = new ChannelPool(20);
+        this.channelObjectPool = new ChannelPool(30);
         for (int i = 0; i < 20; i++) {
             try {
                 Channel channel = connection.createChannel();
-                channel.queueDeclare(queueName, true, false, false, null);
+                channel.queueDeclare(queueName, false, false, false, null);
                 this.channelObjectPool.returnObject(channel);
             } catch (Exception e) {
                 System.err.println("fail to create rabbitmq channel");
@@ -149,47 +152,28 @@ public class TextProcessServlet extends HttpServlet {
         PrintWriter out = response.getWriter();
 
         String[] pathVariable = request.getPathInfo().split("/");
+
         if (!isGetUrlValid(pathVariable)) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             out.write("This operation is not provided");
 
         } else {
-            java.sql.Connection conn = null;
-            try {
-                conn = dataSource.getConnection();
-            } catch (SQLException e) {
-                e.printStackTrace();
-                System.err.println("fail to get mysql connection");
-            }
 
-            PreparedStatement preparedStatement = null;
-            int count = -1;
-            String selectQueryStatement = String.format("select count from wordCount where word = \"%s\"", pathVariable[2]);
-            try {
-                preparedStatement = conn.prepareStatement(selectQueryStatement);
+            int count = 0;
 
-                // execute insert SQL statement
-                ResultSet result = preparedStatement.executeQuery();
+            // construct the query
+            Map<String, AttributeValue> eav = new HashMap<String, AttributeValue>();
+            eav.put(":val1", new AttributeValue().withS(pathVariable[2]));
 
-                if (result.next()) {
-                    count = result.getInt("count");
-                }
+            DynamoDBQueryExpression<WordCount> queryExpression = new DynamoDBQueryExpression<WordCount>()
+                    .withIndexName("word-index")
+                    .withKeyConditionExpression("word = :val1")
+                    .withExpressionAttributeValues(eav).withConsistentRead(false);
 
-            } catch (SQLException e) {
-                System.err.println("fail to execute this statement :" + selectQueryStatement);
-            } finally {
-                try {
-                    if (preparedStatement != null) {
-                        preparedStatement.close();
-                    }
-                } catch (SQLException se) {
-                    se.printStackTrace();
-                }
-            }
-            try {
-                conn.close();
-            } catch (SQLException throwables) {
-                System.err.println("fail to close the mysql connection");
+            List<WordCount> betweenReplies = mapper.query(WordCount.class, queryExpression);
+
+            for (WordCount wordCount : betweenReplies) {
+                count += wordCount.getCount();
             }
 
             // check if body exits and if the target is valid
@@ -214,11 +198,16 @@ public class TextProcessServlet extends HttpServlet {
     }
 
     /**
-     * Set the data source of JDBC
+     * Set the data source of Dynamo
      */
-    private void setDataSource() throws IOException {
-        Properties properties = new Properties();
-        properties.load(getServletContext().getResourceAsStream("WEB-INF/application.properties"));
-        dataSource = new JDBCDataSource(properties).getDataSource();
+    private void setDataSource() {
+        BasicSessionCredentials sessionCredentials = new BasicSessionCredentials(
+               properties.getProperty("aws_access_key_id"),
+                properties.getProperty("aws_secret_access_key"),
+                properties.getProperty("aws_session_token"));
+        AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard()
+                .withCredentials(new AWSStaticCredentialsProvider(sessionCredentials)).withRegion("us-east-1")
+                .build();
+        this.mapper = new DynamoDBMapper(client);
     }
 }
